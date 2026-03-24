@@ -92,7 +92,7 @@ SPAWNING → IDLE ⇄ WORKING → STUCK
 | Agent | Idle signal | Working signal |
 |-------|------------|----------------|
 | Claude Code | `❯` prompt | Spinner chars (`✽ ✻ ·`), `esc to interrupt` |
-| Copilot CLI | `›` prompt | `Thinking`, `Running`, `Executing` |
+| Copilot CLI | `❯  Type @` prompt, `? for shortcuts` | `Esc to cancel`, `Thinking`, `Running` |
 
 More agents (Gemini CLI, Aider, OpenCode) are just new regex entries.
 

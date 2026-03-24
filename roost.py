@@ -124,6 +124,7 @@ _WORKING = {
         re.compile(r"Running\u2026"),
     ],
     "copilot": [
+        re.compile(r"Esc to cancel"),  # active task indicator
         re.compile(r"Thinking|Running|Executing", re.I),
     ],
 }
@@ -137,8 +138,10 @@ _IDLE = {
         re.compile(r"(?i)claude\s+code\s+v[\d.]+"),  # welcome screen
     ],
     "copilot": [
-        re.compile(r"^\s*\u203a"),  # › prompt
+        re.compile(r"\u276f\s+Type\s+@"),  # ❯  Type @ to mention files...
+        re.compile(r"\u276f[\s\u00a0]*$"),  # ❯ prompt (same char as Claude)
         re.compile(r"\?\s*for\s*shortcuts"),  # footer hint
+        re.compile(r"GitHub Copilot v[\d.]+"),  # welcome screen
     ],
 }
 
@@ -392,7 +395,12 @@ def cmd_send(args) -> dict:
         time.sleep(0.1)
         pane.send_keys("", literal=False, enter=True)
     else:
-        pane.send_keys(args.text, literal=True, enter=True)
+        # Send text literally, then delay before Enter.
+        # TUI agents (Copilot, Codex) need time to process pasted text
+        # before receiving Enter — without this, Enter can be lost.
+        pane.send_keys(args.text, literal=True, enter=False)
+        time.sleep(0.05)  # 50ms — matches NTM's DefaultEnterDelay
+        pane.enter()
 
     return {"sent": True, "pane_id": pane.pane_id, "text_length": len(args.text)}
 
