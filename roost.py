@@ -376,6 +376,21 @@ def cmd_status(args) -> dict:
     }
 
 
+def _send_via_buffer(pane, text: str) -> str | None:
+    """Send multiline text using tmux load-buffer + paste-buffer + Enter."""
+    buf = f"roost-{int(time.time() * 1000)}"
+    proc = subprocess.run(
+        ["tmux", "load-buffer", "-b", buf, "-"],
+        input=text, text=True, capture_output=True,
+    )
+    if proc.returncode != 0:
+        return f"load-buffer failed: {proc.stderr.strip()}"
+    pane.cmd("paste-buffer", "-d", "-b", buf)
+    time.sleep(0.1)
+    pane.enter()
+    return None
+
+
 def cmd_send(args) -> dict:
     server = _get_server()
     session = _get_session(server, args.session)
@@ -383,24 +398,22 @@ def cmd_send(args) -> dict:
     if not pane:
         return _err("PANE_NOT_FOUND", f"No managed pane matching '{args.target}'")
 
+    program = _pane_option(pane, "@roost_program") or ""
+
     if args.multiline:
-        # Use load-buffer + paste-buffer for multiline
-        proc = subprocess.run(
-            ["tmux", "load-buffer", "-b", "roost-inject", "-"],
-            input=args.text, text=True, capture_output=True,
-        )
-        if proc.returncode != 0:
-            return _err("SEND_FAILED", f"load-buffer failed: {proc.stderr.strip()}")
-        pane.cmd("paste-buffer", "-d", "-b", "roost-inject")
-        time.sleep(0.1)
-        pane.send_keys("", literal=False, enter=True)
+        err = _send_via_buffer(pane, args.text)
+        if err:
+            return _err("SEND_FAILED", err)
     else:
-        # Send text literally, then delay before Enter.
-        # TUI agents (Copilot, Codex) need time to process pasted text
-        # before receiving Enter — without this, Enter can be lost.
         pane.send_keys(args.text, literal=True, enter=False)
-        time.sleep(0.05)  # 50ms — matches NTM's DefaultEnterDelay
+        time.sleep(0.1)
         pane.enter()
+        # Copilot CLI: first Enter switches to multi-line mode, second
+        # Enter submits (empty line = submit). NTM uses the same
+        # double-enter pattern for Codex/Gemini TUIs.
+        if program in ("copilot", "codex", "gemini"):
+            time.sleep(0.5)
+            pane.enter()
 
     return {"sent": True, "pane_id": pane.pane_id, "text_length": len(args.text)}
 
